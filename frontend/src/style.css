@@ -71,6 +71,27 @@ h1 { margin: 0 0 0.2rem; font-size: 1.2rem; font-weight: 800; color: var(--ss-in
   position: relative; height: 100%; min-width: 100%;
   display: flex; align-items: stretch;
 }
+/* 主图坐标层：应急留白 / 挡柱 / 摊位全部按同一次运行快照的米数绝对定位 */
+.ss-street-abs { display: block; }
+.ss-street-abs .ss-band-cell {
+  position: absolute; top: 0; bottom: 0;
+}
+.ss-band-cell.ss-emergency {
+  background:
+    repeating-linear-gradient(135deg, rgba(243,234,212,0.05) 0 10px, rgba(243,234,212,0.16) 10px 20px),
+    linear-gradient(180deg, #2e2820 0%, #241f19 100%);
+  border-left: 2px dashed rgba(196,165,116,0.85);
+  border-right: 2px dashed rgba(196,165,116,0.85);
+  box-shadow: inset 0 0 18px rgba(0,0,0,0.55);
+}
+.ss-zone-label {
+  writing-mode: vertical-rl;
+  letter-spacing: 0.12em;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--ss-dust);
+  white-space: nowrap;
+}
 .ss-band-cell {
   position: relative; height: 100%;
   display: flex; align-items: center; justify-content: center;
