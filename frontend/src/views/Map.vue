@@ -6,30 +6,46 @@ const vendors = ref<any[]>([])
 async function run() { data.value = await api('/allocate/run?segment_id=1', { method: 'POST' }) }
 onMounted(async () => {
   vendors.value = await api('/vendors')
-  await run()
+  // 默认展示最近一次成功运行；旧 run 的边界以其快照为准，不被新应急值改写
+  data.value = await api('/allocate/latest?segment_id=1')
 })
 const colors = ['#e8a87c','#85dcb8','#e27d60','#c38d9e','#41b3a3','#f4a261','#e76f51']
 const cells = computed(() => {
   if (!data.value) return []
   const width = data.value.segment.width_m
+  const pct = (m: number) => (m / width) * 100
   const out: any[] = []
-  for (const p of data.value.pillars || []) {
-    out.push({ type: 'pillar', start: p.position_m - p.thickness_m/2, w: p.thickness_m, label: p.label || '挡柱' })
+  // 禁入区间（应急带 + 挡柱，重叠已在引擎合并）——主图与引擎挖带同源同一套
+  for (const b of data.value.blocked_spans || []) {
+    const kinds = b.kinds || []
+    const hasPillar = kinds.includes('pillar')
+    const hasEm = kinds.includes('start_emergency') || kinds.includes('end_emergency')
+    out.push({
+      type: hasPillar ? 'pillar' : 'emergency',
+      start: b.start_m, w: b.end_m - b.start_m,
+      left: pct(b.start_m), widthPct: pct(b.end_m - b.start_m),
+      label: hasEm && !hasPillar ? '应急' : b.label,
+      emTag: hasPillar && hasEm ? '应急' : '',
+    })
   }
   for (const [i, p] of (data.value.placements || []).entries()) {
-    out.push({ type: 'stall', start: p.start_m, w: p.width_m, label: p.vendor_name, color: colors[i % colors.length] })
+    out.push({
+      type: 'stall', start: p.start_m, w: p.width_m,
+      left: pct(p.start_m), widthPct: Math.max(pct(p.width_m), 2),
+      label: p.vendor_name, color: colors[i % colors.length],
+    })
   }
-  return out.sort((a,b) => a.start - b.start).map(c => ({ ...c, pct: Math.max((c.w / width) * 100, 2) }))
+  return out.sort((a, b) => a.start - b.start)
 })
 </script>
 <template>
   <div class="ss-street-wrap">
     <h1>街段分配带</h1>
-    <p class="sub">沿街一维开间 · 挡柱为竖直阻断 · 底部为摊主排队</p>
-    <button class="btn" @click="run">重新分配</button>
+    <p class="sub">沿街一维开间 · 两端应急带留白、挡柱为竖直阻断，均与引擎同一套区间 · 底部为摊主排队</p>
+    <button class="btn" @click="run">按当前登记重新分配</button>
     <div class="ss-band-ruler" v-if="data">
       <span>0 m</span>
-      <span>{{ data.segment.name }} · {{ data.segment.width_m }} m</span>
+      <span>{{ data.segment.name }} · {{ data.segment.width_m }} m · 起点应急 {{ data.start_emergency_m }} m / 终点应急 {{ data.end_emergency_m }} m</span>
       <span>{{ data.segment.width_m }} m</span>
     </div>
     <div class="ss-street-band" v-if="data">
@@ -37,9 +53,12 @@ const cells = computed(() => {
         <div
           v-for="(c,i) in cells" :key="i"
           class="ss-band-cell"
-          :class="{ 'ss-pillar': c.type === 'pillar' }"
-          :style="{ width: c.pct + '%', background: c.type === 'pillar' ? undefined : c.color, flex: '0 0 ' + c.pct + '%' }"
-        >{{ c.label }}</div>
+          :class="{ 'ss-pillar': c.type === 'pillar', 'ss-emergency': c.type === 'emergency' }"
+          :style="{ left: c.left + '%', width: c.widthPct + '%', background: c.type === 'stall' ? c.color : undefined }"
+        >
+          <span v-if="c.emTag" class="ss-em-tag">{{ c.emTag }}</span>
+          {{ c.label }}
+        </div>
       </div>
     </div>
     <div class="ss-vendor-queue">
